@@ -1,0 +1,28 @@
+{
+  "name": "drag-n-drop",
+  "version": "1.0.0-b1",
+  "description": "Minimalist drag'n'drop abstraction",
+  "keywords": [
+    "drag and drop",
+    "dnd",
+    "sortable"
+  ],
+  "author": "Rasmus Schultz <rasmus@mindplay.dk>",
+  "license": "MIT",
+  "scripts": {
+    "build": "tsc"
+  },
+  "main": "dist/drag-n-drop.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mindplay-dk/drag-n-drop.git"
+  },
+  "bugs": {
+    "url": "https://github.com/mindplay-dk/drag-n-drop/issues"
+  },
+  "homepage": "https://github.com/mindplay-dk/drag-n-drop",
+  "devDependencies": {
+    "typescript": "^2.7.2",
+    "uglify-js": "^3.3.14"
+  }
+}
