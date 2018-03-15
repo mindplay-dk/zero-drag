@@ -10,7 +10,7 @@
   "author": "Rasmus Schultz <rasmus@mindplay.dk>",
   "license": "MIT",
   "scripts": {
-    "build": "rimraf dist build && tsc && uglifyjs build/index.js --source-map includeSources,url=build/index.js.map --mangle --compress --output dist/index.js && gzip-size dist/index.js"
+    "build": "rimraf dist build && tsc && uglifyjs build/index.js --source-map \"includeSources,content='build/index.js.map',url='index.js.map'\" --mangle --compress --output dist/index.js && gzip-size dist/index.js"
   },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
