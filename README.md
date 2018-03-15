@@ -2,6 +2,9 @@
 
 A minimalist abstraction of drag-and-drop *interactions only - without* abstracting the effects. ([why?](#why))
 
+Purpose-built for custom in-app drag-and-drop UI - if you need to exchange data/files with the desktop,
+this is not the library you're looking for.
+
 **Features:**
 
   * Generates drag-and-drop event listeners exposing simple start/drag/drop hooks
@@ -12,6 +15,8 @@ A minimalist abstraction of drag-and-drop *interactions only - without* abstract
   * Small: just over 1K
   * Works basically anywhere
   * Written in Typescript: fully type-hinted
+
+**TODO:** tests, touch events, exchanging files/data with the desktop? (contributions welcome.)
 
 ## Examples
 
@@ -43,4 +48,11 @@ Because reasons:
 
 ## Alternatives
 
-TODO
+Some alternative libs and how they differ:
+
+  * [`dragula`](https://www.npmjs.com/package/dragula) - more high-level library implementing things like sort-order
+    and visual effects; bridges to React and Angular.
+  * [`drag-on-drop`](https://www.npmjs.com/package/drag-on-drop) - larger, more high-level library implementing sortable
+    lists and trees; bridge to React.
+  * [`drag-drop`](https://www.npmjs.com/package/drag-drop) - uses HTML5 `drag`-events - if you need to exchange data
+    and files with the desktop, this may be the lib you want.
