@@ -20,7 +20,11 @@ this is not the library you're looking for.
 
 ## Examples
 
-TODO
+Some basic examples are available here:
+
+https://plnkr.co/edit/fBPPlhQBXU589V2ut1hm?p=preview
+
+Disclaimer: I am *not* a designer, so this looks like a programmer made it. (contributions welcome!)
 
 ## Install
 
