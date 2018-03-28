@@ -6,11 +6,16 @@ export type DragElement = HTMLElement | SVGElement;
 /**
  * This interface defines the message format for the `onStart`, `onDrag` and `onDrop` hooks of `DragOptions`.
  */
-export interface DragMessage<TElement extends DragElement> {
+export interface DragMessage<TElement extends DragElement, TValue> {
     /**
      * The item being dragged
      */
     item: TElement
+
+    /**
+     * The derived value of the item being dragged; see `DragOptions.deriveValue`
+     */
+    itemValue: TValue;
 
     /**
      * The starting position of the item being dragged
@@ -21,6 +26,11 @@ export interface DragMessage<TElement extends DragElement> {
      * The current target to which the item is being dragged
      */
     target?: TElement
+
+    /**
+     * The derived value of the target to which the item is being dragged; see `DragOptions.deriveValue`
+     */
+    targetValue?: TValue;
 
     /**
      * The mouse-event that generated this message
@@ -41,8 +51,8 @@ export interface DragMessage<TElement extends DragElement> {
 /**
  * This interface defines the callback signature of your `DragMessage` listeners
  */
-export interface DragHook<TElement extends DragElement> {
-    (message: DragMessage<TElement>): void
+export interface DragHook<TElement extends DragElement, TValue> {
+    (message: DragMessage<TElement, TValue>): void
 }
 
 /**
@@ -50,6 +60,14 @@ export interface DragHook<TElement extends DragElement> {
  */
 export interface ElementSelector<TElement extends DragElement> {
     (el: TElement): TElement | undefined
+}
+
+/**
+ * This interface defines the callback signature of a function that derives the value
+ * of an item or target element.
+ */
+export interface ValueDelegate<TElement extends DragElement, TValue = TElement> {
+    (el: TElement): TValue;
 }
 
 /**
@@ -62,21 +80,21 @@ export type ElementFilter = string | { (element: Element): boolean }
 /**
  * This type defines the options that can be passed to `makeListener` factory-function.
  */
-export interface DragOptions<TElement extends DragElement = HTMLElement> {
+export interface DragOptions<TElement extends DragElement = HTMLElement, TValue = TElement> {
     /**
      * This hook is triggered once when the drag-operation starts
      */
-    onStart?: DragHook<TElement>
+    onStart?: DragHook<TElement, TValue>
 
     /**
      * This hook is triggered repeatedly during the drag-operation
      */
-    onDrag?: DragHook<TElement>
+    onDrag?: DragHook<TElement, TValue>
 
     /**
      * This hook is triggered once when the drag-operation ends
      */
-    onDrop?: DragHook<TElement>
+    onDrop?: DragHook<TElement, TValue>
 
     /**
      * This function can be used to filter or change the item being dragged
@@ -87,6 +105,22 @@ export interface DragOptions<TElement extends DragElement = HTMLElement> {
      * This function can be used to filter or change the target being dragged to
      */
     selectTarget?: ElementSelector<TElement>
+
+    /**
+     * This function derives a value from an item or target element.
+     * 
+     * The value can be anything, but a typical strategy is to attach a globally unique
+     * ID as an attribute of item/target elements, and either return that, or use this
+     * function to look up a model object in a map or registry of some sort.
+     * 
+     * The derived value is also used internally when comparing item/target identity,
+     * and may be required when working within a framework such as React (etc.) where
+     * asynchronous rendering and element recycling can make the elements themselves
+     * unreliable in terms of identity: a drag handler might trigger a re-render,
+     * and swapping two elements in a list, for example, could mean that the state
+     * and contents (including the ID attribute!) of two elements are swapped.
+     */
+    deriveValue?: ValueDelegate<TElement, TValue>
 
     /**
      * Minimum drag-distance threshold (in pixels) before the drag-operation starts.
@@ -151,11 +185,15 @@ export interface ItemPosition {
     top: number;
 }
 
+function sameValue<TElement, TValue>(el: TElement): TValue {
+    return el as any as TValue;
+}
+
 /**
  * Builds a `mousedown` event-listener for custom drag-and-drop behavior defined
  * by a set of hooks and filters.
  */
-export function makeListener<TElement extends DragElement = HTMLElement>(options: DragOptions<TElement>) {
+export function makeListener<TElement extends DragElement = HTMLElement, TValue = TElement>(options: DragOptions<TElement, TValue>) {
     const { dragThreshold, deferTargeting } = options;
 
     if (dragThreshold) { 
@@ -166,7 +204,7 @@ export function makeListener<TElement extends DragElement = HTMLElement>(options
         options = applyDeferredTargeting(deferTargeting, options);
     }
 
-    let { onStart, onDrag, onDrop, selectItem, selectTarget } = options;
+    let { onStart, onDrag, onDrop, selectItem, selectTarget, deriveValue = sameValue } = options;
 
     return function onMouseDown(event: MouseEvent) {
         const offsetX = event.pageX;
@@ -181,20 +219,27 @@ export function makeListener<TElement extends DragElement = HTMLElement>(options
         
         const itemOffset = item.getBoundingClientRect();
         
-        let oldPointerEvents = item.style.pointerEvents;
-        
-        item.style.pointerEvents = "none";
-
-        function trigger(hook: DragHook<TElement> | undefined, event: MouseEvent) {
+        function trigger(hook: DragHook<TElement, TValue> | undefined, event: MouseEvent) {
             if (hook) {
                 let target = selectTarget
                     ? selectTarget(event.target as TElement)
                     : event.target as TElement;
+
+                let itemValue = deriveValue(item!);
+                let targetValue = target ? deriveValue(target) : undefined;
+
+                if (itemValue === targetValue) {
+                    // same item/target - remove target/value from message:
+                    target = undefined;
+                    targetValue = undefined;
+                }
                 
                 hook({
                     item: item!,
+                    itemValue,
                     itemOffset,
                     target,
+                    targetValue,
                     event,
                     dx: event.pageX - offsetX,
                     dy: event.pageY - offsetY
@@ -212,8 +257,6 @@ export function makeListener<TElement extends DragElement = HTMLElement>(options
             document.removeEventListener("mousemove", onMouseMove);
             document.removeEventListener("mouseup", onMouseUp);
             
-            item.style.pointerEvents = oldPointerEvents;
-
             trigger(onDrop, event);
         };
 
@@ -260,7 +303,7 @@ export function selectParent(element: Element, filter: ElementFilter): Element |
  * coordinates - this can be useful, for example, if you want to check if the pointer
  * is hovering over the top (`y < 0.5`) or bottom (`y >= 0.5`) of the target.
  */
-export function targetCoordsFrom<TElement extends DragElement>({ event, target }: DragMessage<TElement>): TargetCoords | undefined {
+export function targetCoordsFrom<TElement extends DragElement>({ event, target }: DragMessage<TElement, any>): TargetCoords | undefined {
     if (target) {
         const bounds = target.getBoundingClientRect();
 
@@ -287,7 +330,7 @@ export function targetCoordsFrom<TElement extends DragElement>({ event, target }
  * (with a `px` unit suffix) to the `style.left` and `style.top` properties of
  * an absolutely-positioned element, e.g. from the `onDrag` hook.
  */
-export function itemPositionFrom<TElement extends DragElement>({ itemOffset, dx, dy }: DragMessage<TElement>): ItemPosition {
+export function itemPositionFrom<TElement extends DragElement>({ itemOffset, dx, dy }: DragMessage<TElement, any>): ItemPosition {
     return {
         left: itemOffset.left + dx,
         top: itemOffset.top + dy
@@ -297,7 +340,7 @@ export function itemPositionFrom<TElement extends DragElement>({ itemOffset, dx,
 /**
  * Internally applies a minimum drag-distance behavior (using a theshold in pixels) to the given options.
  */
-function applyDragThreshold<TElement extends DragElement>(dist_px: number, { onStart, onDrag, onDrop, ...rest }: DragOptions<TElement>): DragOptions<TElement> {
+function applyDragThreshold<TElement extends DragElement, TValue>(dist_px: number, { onStart, onDrag, onDrop, ...rest }: DragOptions<TElement, TValue>): DragOptions<TElement, TValue> {
     let active = false;
 
     return {
@@ -327,11 +370,11 @@ function applyDragThreshold<TElement extends DragElement>(dist_px: number, { onS
 /**
  * Internally applies deferred targeting behavior (with timeout in milliseconds) to the given options.
  */
-function applyDeferredTargeting<TElement extends DragElement>(time_msec: number, { selectTarget, onStart, onDrag, onDrop, ...rest }: DragOptions<TElement>): DragOptions<TElement> {
+function applyDeferredTargeting<TElement extends DragElement, TValue>(time_msec: number, { selectTarget, onStart, onDrag, onDrop, ...rest }: DragOptions<TElement, TValue>): DragOptions<TElement, TValue> {
     let timer: any;
     let current_target: TElement | undefined;
     let next_target: TElement | undefined;
-    let last_message: DragMessage<TElement>;
+    let last_message: DragMessage<TElement, TValue>;
 
     function setTarget(new_target: TElement | undefined) {
         if (new_target !== next_target) {
