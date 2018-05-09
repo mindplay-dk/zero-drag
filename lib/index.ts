@@ -205,7 +205,7 @@ function sameValue<TElement, TValue>(el: TElement): TValue {
 export function makeListener<TElement extends DragElement = HTMLElement, TItemValue = TElement, TTargetValue = TItemValue>(options: DragOptions<TElement, TItemValue, TTargetValue>) {
     const { dragThreshold, deferTargeting } = options;
 
-    if (dragThreshold) { 
+    if (dragThreshold) {
         options = applyDragThreshold(dragThreshold, options);
     }
 
@@ -225,9 +225,9 @@ export function makeListener<TElement extends DragElement = HTMLElement, TItemVa
         if (!item) {
             return;
         }
-        
+
         const itemOffset = item.getBoundingClientRect();
-        
+
         function trigger(hook: DragHook<TElement, TItemValue, TTargetValue> | undefined, event: MouseEvent) {
             if (hook) {
                 let target = selectTarget
@@ -242,7 +242,7 @@ export function makeListener<TElement extends DragElement = HTMLElement, TItemVa
                     target = undefined;
                     targetValue = undefined;
                 }
-                
+
                 hook({
                     item: item!,
                     itemValue,
@@ -265,7 +265,7 @@ export function makeListener<TElement extends DragElement = HTMLElement, TItemVa
         const onMouseUp = (event: MouseEvent) => {
             document.removeEventListener("mousemove", onMouseMove);
             document.removeEventListener("mouseup", onMouseUp);
-            
+
             trigger(onDrop, event);
         };
 
@@ -291,7 +291,7 @@ export function selectParent(element: Element, filter: ElementFilter): Element |
     const match = typeof filter === "string"
         ? (element: Element) => element.matches(filter)
         : filter;
-    
+
     while (element) {
         if (element instanceof Element && match(element)) {
             return element;
@@ -341,8 +341,8 @@ export function targetCoordsFrom<TElement extends DragElement>({ event, target }
  */
 export function itemPositionFrom<TElement extends DragElement>({ itemOffset, dx, dy }: DragMessage<TElement, any, any>): ItemPosition {
     return {
-        left: itemOffset.left + dx,
-        top: itemOffset.top + dy
+        left: itemOffset.left + dx + window.scrollX,
+        top: itemOffset.top + dy + window.scrollY
     }
 }
 
@@ -400,11 +400,11 @@ function applyDeferredTargeting<TElement extends DragElement, TItemValue, TTarge
             }, time_msec);
         }
     }
-    
+
     function cancel() {
         if (timer) {
             window.clearTimeout(timer);
-            
+
             timer = null;
         }
     }
@@ -423,7 +423,7 @@ function applyDeferredTargeting<TElement extends DragElement, TItemValue, TTarge
             current_target = undefined;
             next_target = undefined;
             last_message = message;
-            
+
             if (onStart) {
                 onStart(message);
             }
