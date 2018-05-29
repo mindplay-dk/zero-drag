@@ -1,6 +1,6 @@
 {
   "name": "zero-drag",
-  "version": "1.0.0-b4",
+  "version": "1.0.0-b5",
   "description": "Minimalist abstraction of drag'n'drop interactions",
   "keywords": [
     "drag and drop",
