@@ -4,6 +4,38 @@
 export type DragElement = HTMLElement | SVGElement;
 
 /**
+ This is the MouseLikeEvent extracted from a TouchEvent
+ */
+export interface MouseLikeEvent {
+    /**
+     * The X coordinate (in pixels) at which the event took place on the page.
+     */
+    pageX: number
+
+    /**
+     * The Y coordinate (in pixels) at which the event took place on the page.
+     */
+    pageY: number
+
+    /**
+     * The X coordinate (in pixels) at which the event took place on the viewport.
+     */
+    clientX: number
+
+    /**
+     * The Y coordinate (in pixels) at which the event took place on the viewport.
+     */
+    clientY: number
+
+    /**
+     * The element targeted by the event
+     */
+    target: DragElement
+}
+
+export type DragEvent = MouseEvent | MouseLikeEvent;
+
+/**
  * This interface defines the message format for the `onStart`, `onDrag` and `onDrop` hooks of `DragOptions`.
  */
 export interface DragMessage<TElement extends DragElement, TItemValue, TTargetValue> {
@@ -35,7 +67,7 @@ export interface DragMessage<TElement extends DragElement, TItemValue, TTargetVa
     /**
      * The mouse-event that generated this message
      */
-    event: MouseEvent
+    event: DragEvent
 
     /**
      * Horizontal distance dragged (in pixels)
@@ -65,11 +97,11 @@ export interface ElementSelector<TElement extends DragElement> {
 /**
  * This interface defines the callback signature of a function that derives the value
  * of an item or target element; see `getItemValue` and `getTargetValue` of `DragOptions`.
- * 
+ *
  * The value can be anything, but a typical strategy is to attach a globally unique
  * ID as an attribute of item/target elements, and either return that, or use this
  * function to look up a model object in a map or registry of some sort.
- * 
+ *
  * The derived value is also used internally when comparing item/target identity,
  * and may be required when working within a framework such as React (etc.) where
  * asynchronous rendering and element recycling can make the elements themselves
@@ -114,7 +146,7 @@ export interface DragOptions<TElement extends DragElement = HTMLElement, TItemVa
 
     /**
      * This function derives the value of an item from an item element.
-     * 
+     *
      * The derived value is made available to listeners as `DragMessage.itemValue`.
      */
     getItemValue?: ValueDelegate<TElement, TItemValue>
@@ -126,14 +158,14 @@ export interface DragOptions<TElement extends DragElement = HTMLElement, TItemVa
 
     /**
      * This function derives the value of an item from an item element.
-     * 
+     *
      * The derived value is made available to listeners as `DragMessage.itemValue`.
      */
     getTargetValue?: ValueDelegate<TElement, TTargetValue>
 
     /**
      * Minimum drag-distance threshold (in pixels) before the drag-operation starts.
-     * 
+     *
      * If specified, the `onStart` hook will not be triggered until the mouse has moved
      * a minimum distance from the position of the initial `mousedown` event - this
      * allows you to add your own `click` handlers.
@@ -142,13 +174,22 @@ export interface DragOptions<TElement extends DragElement = HTMLElement, TItemVa
 
     /**
      * Minimum time (in milliseconds) before changing the target of a drag-operation.
-     * 
+     *
      * If specified, the `target` property of every `DragMessage` will not change unless
      * the user points at the same target for the specified period of time - this helps prevent
      * erratic targeting and may better track the user's intent when dragging over many small
      * moving targets, for example in a drag-and-drop list or tree.
      */
     deferTargeting?: number
+
+    /**
+     * Whether to set up a listener for touch events, or mouse events
+     *
+     * A value of true means that the listener will be for touch events
+     * A false value (default) will listen for mouse events.
+     * To listen for both types of events, invoke twice, with different options.
+     */
+     touch?: boolean
 }
 
 export interface TargetCoords {
@@ -185,7 +226,7 @@ export interface TargetCoords {
 
 /**
  * Absolute position of the tracked element, as reported by the `itemPositionFrom` utility function.
- * 
+ *
  * These coordinates can be directly applied to an element's `style.left` and `style.top` properties,
  * just make sure you add a `px` unit suffix.
  */
@@ -197,6 +238,34 @@ export interface ItemPosition {
 function sameValue<TElement, TValue>(el: TElement): TValue {
     return el as any as TValue;
 }
+
+/**
+ * Extract a usable mouse-like event from a touch event.
+ * Only expects a single finger to be used for the touch event.
+ */
+function eventFromTouch(event: TouchEvent):MouseLikeEvent {
+    if (!event || !event.changedTouches || event.changedTouches.length !== 1) {
+        return undefined;
+    }
+    function ClonedEvent() {};
+    var clone = new ClonedEvent();
+    for (var property in event) {
+        var descriptor = Object.getOwnPropertyDescriptor(event, property);
+        if (descriptor && (descriptor.get || descriptor.set)) {
+            Object.defineProperty(clone, property, descriptor);
+        } else {
+            clone[property] = event[property];
+        }
+    }
+    var touch = event.changedTouches[0];
+    clone.pageX = touch.pageX;
+    clone.pageY = touch.pageY;
+    clone.target = document.elementFromPoint(clone.pageX, clone.pageY);
+    Object.setPrototypeOf(clone, event);
+    return clone;
+};
+
+
 
 /**
  * Builds a `mousedown` event-listener for custom drag-and-drop behavior defined
@@ -215,7 +284,7 @@ export function makeListener<TElement extends DragElement = HTMLElement, TItemVa
 
     let { onStart, onDrag, onDrop, selectItem, selectTarget, getItemValue = sameValue, getTargetValue = sameValue } = options;
 
-    return function onMouseDown(event: MouseEvent) {
+    const dragStart = (event: DragEvent) => {
         const offsetX = event.pageX;
         const offsetY = event.pageY;
         const item = selectItem
@@ -228,7 +297,7 @@ export function makeListener<TElement extends DragElement = HTMLElement, TItemVa
 
         const itemOffset = item.getBoundingClientRect();
 
-        function trigger(hook: DragHook<TElement, TItemValue, TTargetValue> | undefined, event: MouseEvent) {
+        function trigger(hook: DragHook<TElement, TItemValue, TTargetValue> | undefined, event: DragEvent) {
             if (hook) {
                 let target = selectTarget
                     ? selectTarget(event.target as TElement)
@@ -258,20 +327,39 @@ export function makeListener<TElement extends DragElement = HTMLElement, TItemVa
 
         trigger(onStart, event);
 
-        const onMouseMove = (event: MouseEvent) => {
+        const onMouseMove = (event: DragEvent) => {
             trigger(onDrag, event);
         };
 
-        const onMouseUp = (event: MouseEvent) => {
+        const onTouchMove = (event: TouchEvent) => {
+            onMouseMove(eventFromTouch(event));
+        };
+
+        const onMouseUp = (event: DragEvent) => {
             document.removeEventListener("mousemove", onMouseMove);
             document.removeEventListener("mouseup", onMouseUp);
 
             trigger(onDrop, event);
         };
 
-        document.addEventListener("mousemove", onMouseMove);
-        document.addEventListener("mouseup", onMouseUp);
+        const onTouchEnd = (event: TouchEvent) => {
+            document.removeEventListener("touchmove", onTouchMove);
+            document.removeEventListener("touchend", onTouchEnd);
+
+            trigger(onDrop, eventFromTouch(event));
+        };
+
+        if (options.touch) {
+            document.addEventListener("touchmove", onTouchMove);
+            document.addEventListener("touchend", onTouchEnd);
+        } else {
+            document.addEventListener("mousemove", onMouseMove);
+            document.addEventListener("mouseup", onMouseUp);
+        }
     };
+    return options.touch
+        ? (event: TouchEvent) => { dragStart(eventFromTouch(event)); }
+        : dragStart;
 }
 
 /**
@@ -303,11 +391,11 @@ export function selectParent(element: Element, filter: ElementFilter): Element |
 
 /**
  * Use this function to get the local target coordinates during a drag-operation.
- * 
+ *
  * The `left`, `right`, `top` and `bottom` coordinates report the pointer's distance
- * from each target's edge, in pixels - this can be useful, for example, if you want 
+ * from each target's edge, in pixels - this can be useful, for example, if you want
  * to check how close the pointer is hovering near the edges of the target.
- * 
+ *
  * The `x` and `y` coordinates report the pointer's location within the target in unit
  * coordinates - this can be useful, for example, if you want to check if the pointer
  * is hovering over the top (`y < 0.5`) or bottom (`y >= 0.5`) of the target.
@@ -333,7 +421,7 @@ export function targetCoordsFrom<TElement extends DragElement>({ event, target }
 /**
  * Use this function to calculate the absolute position of the dragged item
  * (or a "ghost" representation of the dragged item) during a drag-operation.
- * 
+ *
  * This takes into account the dragged item's offset position at the start of
  * the drag-operation, which means that these coordinates can be applied directly
  * (with a `px` unit suffix) to the `style.left` and `style.top` properties of
