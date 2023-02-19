@@ -279,7 +279,7 @@ export function makeListener<TElement extends DragElement = HTMLElement, TItemVa
  * an item or target, by scanning for the nearest ancestor that matches
  * a given CSS selector or user-defined filter-function.
  */
-export function makeParentSelector<TElement extends DragElement>(filter: ElementFilter): ElementSelector<TElement> {
+export function makeParentSelector<TElement extends DragElement = HTMLElement>(filter: ElementFilter): ElementSelector<TElement> {
     return (node: TElement) => selectParent(node, filter) as TElement
 }
 
