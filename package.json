@@ -26,7 +26,7 @@
   },
   "homepage": "https://github.com/mindplay-dk/zero-drag",
   "devDependencies": {
-    "gzip-size-cli": "^2.1.0",
+    "gzip-size-cli": "^5.1.0",
     "rimraf": "^2.6.2",
     "typescript": "^2.7.2",
     "uglify-js": "^3.3.14"
